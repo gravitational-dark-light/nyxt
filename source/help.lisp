@@ -415,20 +415,25 @@ This function can be used as a `window' `input-dispatcher'."
   (echo "Press a key sequence to describe (cancel with 'escape escape'):"))
 
 (defun evaluate (string)
-  "Evaluate all expressions in string and return the last result as a list of values.
+  "Evaluate all expressions in string and return a function that either:
+* return the last result as a list of values.
+* signals a caught error
 The list of values is useful when the last result is multi-valued, e.g. (values 'a 'b).
 You need not wrap multiple values in a PROGN, all top-level expression are
 evaluate in order."
   (let ((channel (make-instance 'chanl:bounded-channel :size 1)))
-    (chanl:pexec ()
+    (chanl:pexec ( )
       (chanl:send
        channel
-       (with-input-from-string (input string)
-         (first
-          (last
-           (loop for object = (read input nil :eof)
-                 until (eq object :eof)
-                 collect (multiple-value-list  (eval object))))))))
+       (handler-case (with-input-from-string (input string)
+		       (let ((result (first
+				      (last
+				       (loop for object = (read input nil :eof)
+					     until (eq object :eof)
+					     collect (multiple-value-list  (eval object)))))))
+			 (lambda ( ) result)))
+	 (error (condition)
+	   (lambda ( ) (signal condition))))))
     (chanl:recv channel)))
 
 (defun evaluate-async (string)

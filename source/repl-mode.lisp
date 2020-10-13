@@ -122,12 +122,16 @@
 
 (define-command return-input (&optional (repl (current-repl)))
   "Return inputted text."
-  (let ((input (str:replace-all " " " " (text-buffer::string-representation (input-buffer repl)))))
+  (let ((input (str:replace-all " " " " (text-buffer::string-representation (input-buffer repl)))) results)
     (add-object-to-evaluation-history repl (format nil "> ~a" input))
-    (dolist (result (nyxt::evaluate input))
-      (add-object-to-evaluation-history repl result))
     (text-buffer::kill-line (input-cursor repl))
-    (update-display repl)))
+    (update-input-buffer-display repl)
+    (handler-case (prog1 (setf results (funcall (nyxt::evaluate input)))
+		    (dolist (result results)
+		      (add-object-to-evaluation-history repl result)))
+      (error (condition)
+	(add-object-to-evaluation-history repl (format nil "Evaluation aborted on ~S" condition))))
+    (update-evaluation-history-display repl)))
 
 (defun current-repl ()
   (find-submode (current-buffer) 'repl-mode))
